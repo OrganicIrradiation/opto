@@ -11,6 +11,7 @@ class Opto(object):
         self.port = port
         self.crc_table = self._init_crc_table()
         self.ser = None
+        self._current = None
         self._current_max = 292.84
 
     def __enter__(self):
@@ -77,7 +78,7 @@ class Opto(object):
         else:
             self.ser.write(cmd)
         if wait_for_resp:
-            resp = self.ser.readline()
+            resp = self.ser.read_until('\r\n')
             if include_crc:
                 resp_crc = resp[-4:-2]
                 resp_content = resp[:-4]
@@ -358,13 +359,16 @@ class Opto(object):
         """
         if value is None:
             r = self._send_cmd(b'PrTA\x00\x00\x00\x00')
-            return r
+            return (int.from_bytes(r[5:7], byteorder='big', signed=True)/200 - 5,
+                    int.from_bytes(r[3:5], byteorder='big', signed=True)/200 - 5)
         else:
             if value[0] > value[1]:
                 raise(ValueError)
             data = ((value[1]*16).to_bytes(2, byteorder='big', signed=True) +
                     (value[0]*16).to_bytes(2, byteorder='big', signed=True))
-            r = self._send_cmd(b'PwTA'+data, wait_for_resp=False)
+            r = self._send_cmd(b'PwTA'+data)
+            return (int.from_bytes(r[5:7], byteorder='big', signed=True)/200 - 5,
+                    int.from_bytes(r[3:5], byteorder='big', signed=True)/200 - 5)
 
     def focalpower(self, value=None):
         """
